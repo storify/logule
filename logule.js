@@ -82,6 +82,13 @@ function Logger() {
   , namespaces: namespaces
   };
 
+  this.options = {
+      colors: true
+    , timestamp: function() {
+        return (new Date).toLocaleTimeString();
+      }
+  };
+
   // But dont allow it to be modified
   Object.freeze(this.data);
 
@@ -95,7 +102,7 @@ function Logger() {
   function log() {
     var lvl = arguments[0]
       , args = (arguments.length > 1) ? slice.call(arguments, 1) : []
-      , delim = levelMaps[lvl]('-')
+      , delim = that.options.colors ? levelMaps[lvl]('-') : '-'
       , level = pad(lvl, max_lvl).toUpperCase();
 
     if (removed.indexOf(lvl) >= 0 || globallyOff.indexOf(lvl) >= 0) {
@@ -103,13 +110,17 @@ function Logger() {
     }
 
     var end = namespaces.reduce(function (acc, ns) {
-      return acc.concat([c.blue(c.bold(pad(ns + '', size))), delim]);
+      return that.options.colors ? 
+          acc.concat([c.blue(c.bold(pad(ns + '', size))), delim])
+        : acc.concat([pad(ns + '', size), delim]);
     }, []);
 
+    var timestamp = that.options.timestamp();
+
     console.log.apply(console, [
-      c.grey(new Date().toLocaleTimeString())
+      that.options.colors ? c.grey(timestamp) : timestamp
     , delim
-    , (lvl === 'error') ? c.bold(level) : level
+    , (lvl === 'error' && that.options.colors) ? c.bold(level) : level
     , delim
     ].concat(end, args));
 
@@ -117,6 +128,22 @@ function Logger() {
   }
 
   // Public methods
+
+  // Sets or gets an option
+  this.set = function (name, value) {
+    if (typeof value == 'undefined') {
+      return that.options[name];
+    }
+    return that.options[name] = value;
+  };
+
+  this.enable = function(name) {
+    return that.set(name, true);
+  };
+
+  this.disable = function(name) {
+    return that.set(name, false);
+  };
 
   // Generate one helper method per specified level
   levels.forEach(function (name) {
@@ -179,7 +206,9 @@ function Logger() {
   // Subclass from a pre-configured Logger class to get extra namespace(s)
   this.sub = function () {
     var subns = (arguments.length > 0) ? slice.call(arguments, 0) : [];
-    return construct(Logger, namespaces.concat(subns)).pad(size).suppress.apply({}, removed);
+    var sub = construct(Logger, namespaces.concat(subns)).pad(size).suppress.apply({}, removed);
+    sub.options = that.options;
+    return sub;
   };
 
   // Return a single Logger helper method
